@@ -1,0 +1,269 @@
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+        background: radial-gradient(circle, rgba(18, 8, 1, 0.9), rgba(0, 0, 0, 0.7)), 
+                    url('../../img/background/back.jpg'); 
+        color: white;
+        font-family: 'Arial', sans-serif;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-blend-mode: overlay;
+    }
+
+    .game-container {
+      font-family: Arial, sans-serif;
+      background: rgba(0, 0, 0, 0.5);
+      border-radius: 20px;
+      padding: 20px;
+      margin: auto;
+      width: 100%;
+      max-width: 800px;
+      box-shadow: 0 0 25px rgba(255, 215, 0, 0.8);
+      border: 2px solid gold;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .balance, .jackpot {
+      font-size: 24px;
+      font-weight: bold;
+    }
+
+    .balance span, .jackpot span {
+      color: gold;
+    }
+
+    .add-coins-btn {
+      background: linear-gradient(145deg, #ffd700, #b8860b);
+      color: black;
+      border: 2px solid #b88e2c;
+      border-radius: 5px;
+      padding: 5px 15px;
+      cursor: pointer;
+      font-weight: bold;
+      margin-left: 10px;
+      box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+    }
+
+    .add-coins-btn:hover {
+      background: linear-gradient(145deg, #ffed4a, #daa520);
+    }
+
+    .slot-machine {
+      background: #2a2a3a;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+      position: relative;
+      background: #1a1a2a;
+      border: 2px solid #b88e2c;
+      box-shadow: 0 0 10px rgba(255, 215, 0, 0.6);
+    }
+
+    .free-spins-indicator {
+      background: linear-gradient(145deg, #ff9800, #f57c00);
+      color: white;
+      padding: 10px;
+      border-radius: 5px;
+      text-align: center;
+      margin: 10px 0;
+      font-weight: bold;
+      display: none;
+      animation: pulse 1.5s infinite;
+    }
+
+    .reels {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .reel {
+  background: #0a0a0a;
+  border-radius: 8px;
+  height: 300px;
+  overflow: hidden;
+  position: relative;
+  border: 2px solid #b88e2c;
+  transition: transform 0.5s ease-out; /* Adjust the duration and easing function as needed */
+}
+
+
+.reel-strip {
+  position: absolute;
+  width: 100%;
+  transition: top 0.1s linear;
+}
+
+.symbol {
+  width: 100%;
+  height: 100px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #2a2a2a;
+  border: 1px solid #4f4f4f;
+}
+
+.spinning {
+  animation: spin 0.5s linear infinite;
+}
+
+.stop-spinning {
+  transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+    .symbol img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 5px;
+    }
+
+    .symbol.winner {
+      border-color: #ffd700;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes spin {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-1000px);
+  }
+}
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes smoothSpin {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-2000%); }
+    }
+
+    .spinning .reel-strip {
+      animation: smoothSpin 3s cubic-bezier(0.45, 0.05, 0.55, 0.95);
+    }
+
+    .controls {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      align-items: center;
+      margin-top: 20px;
+    }
+
+    .bet-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    button {
+      background: #4a4a5a;
+      border: none;
+      border-radius: 5px;
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 10px 20px;
+      transition: background 0.3s;
+      font-weight: bold;
+    }
+
+    button:hover:not(:disabled) {
+      background: #5a5a6a;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #spinButton {
+      background: gold;
+      margin-left: 10px;
+      color: #000;
+      font-size: 24px;
+      font-weight: bold;
+      padding: 15px 40px;
+      border: 3px solid #b88e2c;
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.7);
+    }
+
+    #spinButton:hover:not(:disabled) {
+      background: #ffed4a;
+    }
+
+    .win-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      animation: fadeIn 0.3s;
+    }
+
+    .win-message {
+      font-size: 2em;
+      color: #ffd700;
+      text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+      animation: bounce 1s infinite;
+      text-align: center;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-20px); }
+    }
+
+    .settings {
+      display: flex;
+      gap: 10px;
+    }
+
+    #soundToggle {
+      background: none;
+      font-size: 24px;
+      color: gold;
+    }
+
+    .symbol.winning {
+      transform: scale(1.3);
+      transition: transform 0.5s ease, box-shadow 0.5s ease;
+      box-shadow: 0 0 15px yellow;
+    }
+
+    .symbol.winning:hover {
+      transform: scale(1.4);
+      box-shadow: 0 0 20px orange;
+    }

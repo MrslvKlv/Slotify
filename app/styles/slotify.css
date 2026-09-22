@@ -1,0 +1,1728 @@
+/* ==========================================================================
+   Slotify — Temple of Gold
+   ========================================================================== */
+
+:root {
+  --gold-100: #fff4c8;
+  --gold-200: #ffe08a;
+  --gold-300: #f5c451;
+  --gold-500: #c9962b;
+  --gold-700: #7a5610;
+
+  --ink-900: #05060b;
+  --ink-800: #0a0d16;
+  --ink-700: #111624;
+  --ink-600: #1a2133;
+  --ink-500: #242e45;
+
+  --teal: #4ad9ff;
+  --violet: #a97bff;
+  --danger: #ff6b6b;
+
+  --text: #eef1f8;
+  --text-dim: #9aa3ba;
+
+  --reel-gap: 10px;
+  --radius: 16px;
+
+  /* Body padding, and the cabinet's vertical budget, come from one
+     value.  These MUST stay in step: the cabinet's height cap is what
+     stops the chassis running off the bottom, and it can only do that
+     if it subtracts the padding the page actually has.  Hard-coding the
+     two separately is what put the chassis through the floor and left
+     the page scrolling against a `fixed` background. */
+  --page-pad: clamp(6px, 1.2vw, 18px);
+
+  --shadow-lift: 0 18px 40px -18px rgba(0, 0, 0, .9);
+  --font-display: 'Cinzel', 'Trajan Pro', Georgia, 'Times New Roman', serif;
+  --font-ui: 'Rajdhani', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-num: 'Rajdhani', 'Segoe UI', ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+/* background.jpg is a temple gateway that is itself a frame: columns,
+   Anubis statues and torches down both edges, a sunset Nile vista in the
+   middle.  The cabinet covers that middle, so what the player actually
+   reads is the decorated border — the art is doing the job of an outer
+   proscenium around the chassis.
+
+   It is deliberately shown at full strength: no veil, no vignette, no
+   tint.  The old back.jpg needed 82-93% black over it because it was
+   never meant to be looked at; this one is, so anything laid on top is
+   just throwing the artwork away.  Nothing depends on a darkened body
+   either — every full-screen overlay carries its own scrim (.modal is
+   rgba(2,3,7,.82) + blur, the bonus round is opaque art, .boot is an
+   opaque gradient) and the win banners sit inside the opaque chassis. */
+body {
+  font-family: var(--font-ui);
+  color: var(--text);
+  background: url('../../img/background/background.jpg') center / cover no-repeat fixed;
+  background-color: var(--ink-900);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--page-pad);
+  /* The cabinet is sized to fit the viewport, so there is nothing to
+     scroll to — and because the background is `fixed`, any scroll slides
+     the chassis against a stationary room.  Every full-screen overlay is
+     position:fixed, so none of them need the page to scroll either. */
+  overflow: hidden;
+}
+
+/* Free-spin mode recolours the room so the mode is readable at a glance
+   — same gateway, dusk turned violet.  Tint only: no black in the
+   stack, so it shifts the hue instead of dimming the art. */
+body.is-free-spins {
+  background-image:
+    radial-gradient(120% 90% at 50% -10%, rgba(126, 44, 148, .34), transparent 64%),
+    radial-gradient(100% 80% at 50% 110%, rgba(34, 96, 128, .30), transparent 64%),
+    url('../../img/background/background.jpg');
+}
+
+img { max-width: 100%; display: block; }
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+[hidden] { display: none !important; }
+
+/* ==========================================================================
+   Icons
+   ========================================================================== */
+.sprite { display: none; }
+
+.ico {
+  width: 1.25em;
+  height: 1.25em;
+  flex: none;
+  display: block;
+  color: inherit;             /* symbols paint with currentColor */
+  overflow: visible;
+}
+
+.icon-btn .ico { width: 20px; height: 20px; }
+/* ==========================================================================
+   Boot screen
+   ========================================================================== */
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-content: center;
+  gap: 20px;
+  background: radial-gradient(circle at 50% 40%, #171008, var(--ink-900) 70%);
+  transition: opacity .5s ease, visibility .5s;
+}
+.boot.is-done { opacity: 0; visibility: hidden; }
+
+.boot__logo {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 6vw, 52px);
+  letter-spacing: .18em;
+  text-align: center;
+  background: linear-gradient(180deg, var(--gold-100), var(--gold-500));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.boot__sub {
+  text-align: center;
+  letter-spacing: .35em;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+.boot__track {
+  width: min(320px, 70vw);
+  height: 4px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, .1);
+  overflow: hidden;
+  margin: 0 auto;
+}
+.boot__bar {
+  height: 100%;
+  width: 0;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--gold-500), var(--gold-200));
+  transition: width .2s ease;
+}
+.boot__pct {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: .2em;
+}
+
+/* ==========================================================================
+   Cabinet
+   --------------------------------------------------------------------------
+   reelfull.png is the chassis: it paints the meter windows, the reel
+   surround and every button. Each live control below is placed as a
+   percentage of the source image (1444 x 1089) so it lands inside the
+   slot drawn for it, and scales with the art at any size.
+
+   Coordinates were measured off the artwork, not guessed - e.g. the four
+   meter windows sit at x 417-582, 659-784, 875-1045 and 1121-1285.
+   ========================================================================== */
+/* The cabinet is sized to the page, not to the background: the artwork
+   behind it is `cover`, so its painted gateway follows the window's
+   aspect while the chassis follows the window's HEIGHT.  On a wide,
+   short window those two disagree and the chassis cannot be made to
+   meet the painted frame — matching them needs artwork drawn at the
+   window's aspect, not a CSS change.
+
+   Capped at 1240px because the chassis art is 1444px wide and upscaling
+   it goes soft.  The height term is what keeps the whole chassis on
+   screen, and it has to subtract the REAL page padding (--page-pad) —
+   assuming a smaller figure is what pushed the base off the bottom and
+   made the page scroll. */
+.cab-wrap {
+  width: 100%;
+  max-width: min(
+    1240px,
+    calc((100vh - 2 * var(--page-pad) - 2px) * 1.3259)
+  );
+  margin: auto;
+}
+
+.cab {
+  position: relative;
+  width: 115%;
+  aspect-ratio: 1444 / 1089;
+  background: url('../../img/background/reelfull.png') 0 0 / 100% 100% no-repeat;
+  container-type: inline-size;
+  filter: drop-shadow(0 24px 50px rgba(0, 0, 0, .75));
+  /* Nudge against the artwork behind.  Percentages here are of the
+     cabinet's OWN box — -5% x is 5% of its width, -5% y is 5% of its
+     height — so the offset scales with the chassis instead of drifting
+     as the window resizes.  Transform rather than margin, so it shifts
+     without re-running layout or pushing on the wrapper's centring. */
+  transform: translate(-6%, -5%);
+}
+
+/* Everything inside scales with the cabinet's own width, not the
+   viewport, so the chassis and its labels stay in proportion. */
+.cab > * { font-size: 1.55cqw; }
+
+/* ---- readouts painted into the chassis ---- */
+.cab-read {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-num);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .01em;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--gold-100);
+  text-shadow: 0 0 10px rgba(255, 210, 74, .55);
+  overflow: hidden;
+}
+
+.cab-read--balance  { left: 28.88%; width: 11.43%; top: 3.49%; height: 5.51%; }
+.cab-read--totalbet { left: 45.64%; width:  8.66%; top: 3.49%; height: 5.51%; color: #fffbe8; }
+.cab-read--win      { left: 60.60%; width: 11.77%; top: 3.49%; height: 5.51%; color: #8effc8; text-shadow: 0 0 10px rgba(90, 255, 190, .5); }
+.cab-read--jackpot  { left: 77.63%; width: 11.36%; top: 3.49%; height: 5.51%; }
+
+.cab-read--bet   { left: 18.56%; width: 9.42%; top: 77.96%; height: 7.07%; cursor: pointer; }
+.cab-read--lines { left: 69.81%; width: 5.26%; top: 77.96%; height: 7.07%; }
+
+.cab-read--bet:hover:not(:disabled) { color: #fff; text-shadow: 0 0 14px rgba(255, 224, 138, .95); }
+.cab-read--bet:disabled { opacity: .45; cursor: default; }
+
+/* ---- reel window ---- */
+.cab-stage {
+  position: absolute;
+  left: 7.48%;
+  right: 7.62%;
+  top: 14.33%;
+  bottom: 29.11%;
+  border-radius: 6px;
+}
+
+/* ---- icon buttons sitting on their painted plates ---- */
+.cab-btn {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border-radius: 14%;
+  color: var(--gold-200);
+  /* Masks the icon painted underneath so button state is unambiguous. */
+  background: radial-gradient(circle at 50% 40%, rgba(8, 12, 22, .96), rgba(4, 6, 12, .99));
+  box-shadow: inset 0 0 0 1px rgba(245, 196, 81, .35);
+  transition: color .18s ease, box-shadow .18s ease, transform .1s ease;
+}
+.cab-btn:hover:not(:disabled) {
+  color: var(--gold-100);
+  box-shadow: inset 0 0 0 1px var(--gold-200), 0 0 18px -2px rgba(245, 196, 81, .85);
+}
+.cab-btn:active:not(:disabled) { transform: scale(.94); }
+.cab-btn:disabled { opacity: .45; }
+
+/* em, not %: an inline <svg> carries no intrinsic size, so a percentage
+   height resolves against the SVG default of 150px instead of the
+   button. */
+.cab-btn .ico { width: 1.9em; height: 1.9em; }
+
+.cab-btn--info  { left:  1.94%; width: 4.29%; top: 78.05%; height: 6.80%; }
+.cab-btn--sound { left:  7.62%; width: 4.43%; top: 78.05%; height: 6.80%; }
+.cab-btn--coins { left: 80.33%; width: 4.85%; top: 78.05%; height: 6.80%; }
+.cab-btn--turbo { left: 86.43%; width: 5.40%; top: 78.05%; height: 6.80%; }
+.cab-btn--auto  { position: static; width: 100%; height: 100%; }
+
+.cab-auto { position: absolute; left: 92.94%; width: 4.85%; top: 78.05%; height: 6.80%; }
+
+.cab-btn.is-active {
+  color: #2b1c00;
+  background: radial-gradient(circle at 50% 35%, var(--gold-100), var(--gold-500));
+  box-shadow: 0 0 22px -2px rgba(245, 196, 81, .95);
+}
+
+.cab-auto__count {
+  position: absolute;
+  right: -12%;
+  top: -12%;
+  min-width: 1.6em;
+  padding: .15em .35em;
+  border-radius: 999px;
+  font-family: var(--font-num);
+  font-size: .8em;
+  font-weight: 700;
+  color: #2b1c00;
+  background: linear-gradient(180deg, #fff, var(--gold-300));
+  box-shadow: 0 0 10px rgba(245, 196, 81, .9);
+}
+
+/* ---- stepper hit areas: the art already draws the + / - plates ---- */
+.cab-step {
+  position: absolute;
+  border-radius: 14%;
+  background: transparent;
+  transition: box-shadow .18s ease, transform .1s ease;
+}
+.cab-step:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 2px var(--gold-100), 0 0 20px -2px rgba(255, 224, 138, .9);
+}
+.cab-step:active:not(:disabled) { transform: scale(.92); }
+.cab-step:disabled { opacity: .35; cursor: default; }
+
+.cab-step--betdown   { left: 13.85%; width: 4.29%; top: 77.87%; height: 7.16%; }
+.cab-step--betup     { left: 28.81%; width: 4.02%; top: 77.87%; height: 7.16%; }
+.cab-step--linesdown { left: 66.62%; width: 3.05%; top: 77.87%; height: 7.16%; }
+.cab-step--linesup    { left: 75.21%; width: 3.32%; top: 77.87%; height: 7.16%; }
+
+/* ---- spin: transparent over the painted disc, so the art is the face ---- */
+.cab-spin {
+  position: absolute;
+  left: 44.18%;
+  width: 11.08%;
+  top: 74.56%;
+  height: 14.69%;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 1.7em;
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: #4a2f04;
+  text-shadow: 0 1px 0 rgba(255, 246, 213, .65);
+  background: transparent;
+  transition: transform .12s ease, filter .2s ease;
+}
+.cab-spin:hover:not(:disabled) { filter: brightness(1.12); }
+.cab-spin:active:not(:disabled) { transform: scale(.95); }
+.cab-spin:disabled { filter: grayscale(.6) brightness(.7); }
+.cab-spin.is-spinning:disabled { filter: none; }
+.cab-spin.is-spinning .cab-spin__label { opacity: 0; }
+
+.cab-spin__ring {
+  position: absolute;
+  inset: -6%;
+  border-radius: 50%;
+  border: .22em solid rgba(245, 196, 81, .2);
+  border-top-color: #fff6d5;
+  border-right-color: var(--gold-300);
+  opacity: 0;
+}
+.cab-spin.is-spinning .cab-spin__ring { opacity: 1; animation: ringSpin .8s linear infinite; }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   Top bar
+   ========================================================================== */
+.fs-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  font-size: 13px;
+  color: #1b0a26;
+  background: linear-gradient(180deg, #f0b3ff, var(--violet));
+  box-shadow: 0 0 22px rgba(169, 123, 255, .6);
+  animation: pulseSoft 1.6s ease-in-out infinite;
+}
+
+/* ==========================================================================
+   Stage + reels
+   ========================================================================== */
+/* Overlays (big win, free spins, round tally) fill the reel window. */
+.cab-stage > .bigwin,
+.cab-stage > .fs-banner,
+.cab-stage > .round-total { border-radius: 6px; }
+
+/* Free-spin counter floats over the top of the reel window. */
+.cab-stage > .fs-pill {
+  position: absolute;
+  left: 50%;
+  top: 2%;
+  transform: translateX(-50%);
+  z-index: 12;
+  font-size: .9em;
+  padding: .35em 1em;
+}
+
+/* The reels fill the window the chassis paints for them. */
+.reels {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--reel-gap);
+  border-radius: 6px;
+}
+
+/* No border here on purpose: `aspect-ratio` resolves against the border
+   box, so a border would make the reel taller than exactly three cells
+   and leave a sliver of a fourth showing.  The ring is drawn with an
+   inset shadow instead, which costs no layout height. */
+/* The reel fills the frame's window rather than deriving its height from
+   an aspect ratio, so three cells always land exactly on the painted
+   window edges. */
+.reel {
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #05070d, #0b1120);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, .07),
+    inset 0 0 30px rgba(0, 0, 0, .9);
+  contain: paint;
+}
+
+/* Top and bottom fade — the single biggest contributor to a spin
+   reading as "smooth" rather than as sliding tiles. */
+.reel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background: linear-gradient(
+    180deg,
+    rgba(4, 6, 12, .95) 0%,
+    rgba(4, 6, 12, .28) 7%,
+    transparent 16%,
+    transparent 84%,
+    rgba(4, 6, 12, .28) 93%,
+    rgba(4, 6, 12, .95) 100%
+  );
+}
+
+/* Height matches the reel so a cell can be exactly one third of it; the
+   extra window cells simply overflow, which is invisible under the
+   reel's own `overflow: hidden`. */
+.reel-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  will-change: transform, filter;
+  backface-visibility: hidden;
+}
+
+.cell {
+  position: relative;
+  width: 100%;
+  height: calc(100% / 3);
+  transition: opacity .3s ease, transform .3s ease;
+}
+
+/* Symbol art as a background: swapping a cached bitmap this way is
+   synchronous, so recycling a cell never flashes an empty frame. */
+.cell__art {
+  position: absolute;
+  inset: 3px;
+  border-radius: 9px;
+  background-color: #10141f;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.cell__frame {
+  position: absolute;
+  inset: 3px;
+  border-radius: 9px;
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, .06);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, .55);
+}
+
+/* Faint tier tinting so high-value symbols read as valuable at a glance. */
+.cell[data-tier='high'] .cell__frame { border-color: rgba(245, 196, 81, .3); }
+.cell[data-tier='special'] .cell__frame { border-color: rgba(74, 217, 255, .38); }
+
+/* --- reel motion states --- */
+.reel.is-spinning .cell { transition: none; }
+
+.reel.is-anticipating {
+  border-color: rgba(245, 196, 81, .85);
+  box-shadow:
+    inset 0 0 30px rgba(0, 0, 0, .9),
+    0 0 26px rgba(245, 196, 81, .75);
+  animation: anticipate .55s ease-in-out infinite;
+}
+
+/* --- sticky wilds -------------------------------------------------- */
+/* Held symbols sit in a layer that never scrolls, so they stay locked in
+   place while the strip spins underneath. */
+.reel__holds {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.hold-cell {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: calc(100% / 3);
+  top: calc(var(--hold-row) * 100% / 3);
+}
+
+.hold-cell .cell__frame {
+  border: 2px solid var(--violet);
+  box-shadow:
+    0 0 20px rgba(169, 123, 255, .85),
+    inset 0 0 24px rgba(169, 123, 255, .45);
+  animation: stickyGlow 1.6s ease-in-out infinite;
+}
+
+/* Remaining-life pips, one per spin left. */
+.hold-cell__pips {
+  position: absolute;
+  left: 50%;
+  bottom: 7px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(8, 4, 16, .82);
+  border: 1px solid rgba(169, 123, 255, .55);
+}
+.hold-cell__pips i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ffffff, var(--violet));
+  box-shadow: 0 0 6px rgba(169, 123, 255, .9);
+}
+
+/* Stacked wilds: each extra wild on the same cell raises the level and
+   the payout multiplier, so the frame runs hotter as it climbs. */
+.hold-cell__mult {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-width: 26px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-family: var(--font-num);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  color: #1b0a26;
+  background: linear-gradient(180deg, #ffe9a8, var(--gold-300));
+  box-shadow: 0 0 14px rgba(255, 224, 138, .95);
+}
+
+.hold-cell.is-stacked .cell__frame {
+  border-color: var(--gold-200);
+  box-shadow:
+    0 0 24px rgba(255, 210, 74, .95),
+    inset 0 0 26px rgba(255, 210, 74, .5);
+}
+
+/* Slam-in when a wild first locks or levels up. */
+.hold-cell.is-fresh { animation: stickyLock .45s cubic-bezier(.2, 1.5, .4, 1); }
+
+.reel.has-holds { box-shadow: inset 0 0 0 1px rgba(169, 123, 255, .5), inset 0 0 30px rgba(0, 0, 0, .9); }
+
+/* Bright sweep the instant a reel lands. */
+.reel__flash {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, .16), transparent);
+}
+.reel__flash.is-on { animation: reelFlash .34s ease-out; }
+
+/* --- win highlighting --- */
+.cab-stage.is-showing-win .cell.is-dim { opacity: .28; }
+
+.cell.is-win {
+  z-index: 2;
+  transform: scale(1.04);
+}
+.cell.is-win .cell__frame {
+  border: 2px solid var(--gold-200);
+  box-shadow:
+    0 0 18px rgba(255, 224, 138, .9),
+    inset 0 0 22px rgba(255, 224, 138, .45);
+  animation: winFrame 1s ease-in-out infinite;
+}
+/* Near miss: a run that cannot pay because it starts after reel 1. */
+.cell.is-near .cell__frame {
+  border: 2px dashed rgba(147, 166, 201, .85);
+  box-shadow: inset 0 0 20px rgba(147, 166, 201, .22);
+}
+
+.cell.is-win.is-scatter .cell__frame {
+  border-color: var(--teal);
+  box-shadow:
+    0 0 20px rgba(74, 217, 255, .9),
+    inset 0 0 22px rgba(74, 217, 255, .5);
+}
+
+/* ==========================================================================
+   Win line overlay
+   ========================================================================== */
+.line-fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.fx-line__glow {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .25;
+  filter: blur(4px);
+}
+.fx-line__core {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fx-line--ghost { opacity: .34; }
+.fx-line--ghost .fx-line__core { stroke-width: 2; stroke-dasharray: 6 7; }
+
+.fx-line--focus .fx-line__core { stroke-width: 4; }
+.fx-line--focus .fx-line__glow { opacity: .5; stroke-width: 14; }
+
+.fx-line__node {
+  opacity: .95;
+  stroke: rgba(0, 0, 0, .55);
+  stroke-width: 1.5;
+}
+.fx-line__badge { stroke: rgba(0, 0, 0, .6); stroke-width: 1.5; }
+.fx-line__badge-text {
+  font-family: var(--font-num);
+  font-size: 13px;
+  font-weight: 700;
+  fill: #10131c;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+/* ==========================================================================
+   Win badge (what actually won)
+   ========================================================================== */
+.line-badge {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(12px, 2.4vw, 22px);
+  transform: translateX(-50%);
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px 7px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: rgba(6, 9, 16, .93);
+  border: 1px solid var(--badge-color, var(--gold-300));
+  box-shadow: 0 0 26px -6px var(--badge-color, var(--gold-300)), var(--shadow-lift);
+  backdrop-filter: blur(6px);
+}
+.line-badge.is-pop { animation: badgePop .34s cubic-bezier(.2, 1.4, .4, 1); }
+
+.badge__tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  color: var(--badge-color, var(--gold-300));
+}
+.badge__thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, .2);
+}
+.badge__text {
+  font-weight: 700;
+  letter-spacing: .06em;
+  font-size: 14px;
+}
+.badge__mult {
+  font-weight: 700;
+  font-size: 12px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #1b0a26;
+  background: linear-gradient(180deg, #f0b3ff, var(--violet));
+}
+.badge__index {
+  font-family: var(--font-num);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .1);
+}
+
+.badge__note {
+  font-size: 11px;
+  letter-spacing: .06em;
+  color: var(--text-dim);
+  padding-right: 6px;
+}
+
+/* Muted, non-celebratory styling — this is an explanation, not a win. */
+.line-badge.is-near-miss {
+  background: rgba(10, 14, 22, .93);
+  box-shadow: 0 8px 24px -12px #000;
+}
+.line-badge.is-near-miss .badge__thumb { opacity: .7; }
+
+.badge__amount {
+  font-family: var(--font-num);
+  font-weight: 700;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: #05070d;
+  background: linear-gradient(180deg, var(--gold-200), var(--gold-500));
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+/* ==========================================================================
+   Big win + free spin overlays
+   ========================================================================== */
+.bigwin {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(80, 55, 5, .9), rgba(3, 4, 8, .95) 70%);
+  animation: fadeIn .3s ease;
+}
+
+/* --- artwork-backed overlays -------------------------------------- *
+   The tier art carries its own wordmark, so the picture fills the stage
+   and only the amount is drawn over it.  A scrim across the lower half
+   keeps the figure readable against the gold. */
+.bigwin.has-art,
+.fs-banner.has-art,
+.round-total.has-art {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.bigwin.has-art::before,
+.fs-banner.has-art::before,
+.round-total.has-art::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(2, 2, 6, .18) 0%,
+    rgba(2, 2, 6, .05) 38%,
+    rgba(2, 2, 6, .62) 72%,
+    rgba(2, 2, 6, .88) 100%
+  );
+}
+
+.bigwin.has-art > *,
+.fs-banner.has-art > *,
+.round-total.has-art > * { position: relative; z-index: 1; }
+
+/* Push the readout into the clear lower third of the artwork. */
+.bigwin.has-art { align-content: end; padding-bottom: clamp(14px, 5vh, 54px); }
+.fs-banner.has-art { align-content: end; padding-bottom: clamp(12px, 4vh, 42px); }
+.round-total.has-art { align-content: end; padding-bottom: clamp(12px, 4vh, 42px); }
+.bigwin__label {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 7vw, 68px);
+  letter-spacing: .1em;
+  text-align: center;
+  background: linear-gradient(180deg, #fff9e0, var(--gold-300) 55%, var(--gold-700));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 22px rgba(245, 196, 81, .65));
+  animation: bigwinPulse 1.1s ease-in-out infinite;
+}
+.bigwin__value {
+  font-family: var(--font-num);
+  font-size: clamp(28px, 6vw, 58px);
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  text-shadow: 0 0 24px rgba(255, 224, 138, .8);
+}
+.bigwin__hint {
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-top: 8px;
+}
+
+.fs-banner {
+  position: absolute;
+  inset: 0;
+  z-index: 21;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 50%, rgba(90, 30, 120, .92), rgba(4, 3, 10, .96) 70%);
+  animation: fadeIn .3s ease;
+}
+
+/* The art says "FREE SPINS"; our own heading would repeat it — on the
+   round tally it also collided with the painted wordmark. */
+.fs-banner.has-art .fs-banner__text,
+.round-total.has-art .round-total__label { display: none; }
+
+/* Violet reads as washed-out against the gold artwork. */
+.fs-banner.has-art .fs-banner__count {
+  background: linear-gradient(180deg, #ffffff, #ffe08a 55%, var(--gold-300));
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 0 26px rgba(255, 224, 138, .9));
+}
+.fs-banner.has-art .fs-banner__note { color: var(--gold-100); }
+.fs-banner__count {
+  font-family: var(--font-display);
+  font-size: clamp(48px, 12vw, 110px);
+  text-align: center;
+  line-height: 1;
+  background: linear-gradient(180deg, #ffffff, #f0b3ff 50%, var(--violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 26px rgba(169, 123, 255, .8));
+  animation: bigwinPulse 1s ease-in-out infinite;
+}
+.fs-banner__text {
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: clamp(15px, 3vw, 26px);
+  letter-spacing: .2em;
+  color: var(--gold-100);
+}
+
+.fs-banner__note {
+  margin-top: 12px;
+  text-align: center;
+  font-size: clamp(11px, 1.8vw, 14px);
+  font-weight: 700;
+  letter-spacing: .18em;
+  color: #f0b3ff;
+  text-shadow: 0 0 14px rgba(169, 123, 255, .9);
+}
+
+.fs-pill__banked {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  background: rgba(0, 0, 0, .35);
+  color: #fff;
+}
+
+/* --- end-of-round tally --- */
+.round-total {
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 50%, rgba(60, 30, 110, .94), rgba(3, 3, 10, .97) 70%);
+  animation: fadeIn .3s ease;
+}
+.round-total__label {
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: clamp(14px, 2.6vw, 22px);
+  letter-spacing: .22em;
+  color: #f0b3ff;
+}
+.round-total__value {
+  font-family: var(--font-num);
+  font-size: clamp(34px, 8vw, 76px);
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  text-shadow: 0 0 28px rgba(255, 224, 138, .85);
+  animation: bigwinPulse 1.1s ease-in-out infinite;
+}
+.round-total__note {
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* ==========================================================================
+   Bonus pick game
+   ========================================================================== */
+.bonus-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-items: center;
+  padding: clamp(10px, 2vw, 24px);
+  background:
+    linear-gradient(rgba(4, 3, 10, .58), rgba(4, 3, 10, .8)),
+    url('../../img/background/bonusback.png') center / cover no-repeat;
+  animation: fadeIn .35s ease;
+}
+
+.bonus {
+  width: min(940px, 100%);
+  max-height: 94vh;
+  overflow-y: auto;
+  padding: clamp(14px, 2.5vw, 26px);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(24, 16, 6, .92), rgba(6, 6, 12, .95));
+  border: 1px solid rgba(245, 196, 81, .5);
+  box-shadow: 0 0 70px -14px rgba(245, 196, 81, .6), var(--shadow-lift);
+}
+
+.bonus__title {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 4vw, 38px);
+  letter-spacing: .14em;
+  text-align: center;
+  background: linear-gradient(180deg, var(--gold-100), var(--gold-500));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.bonus__sub {
+  text-align: center;
+  font-size: clamp(10px, 1.6vw, 13px);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 5px 0 14px;
+  min-height: 1.2em;
+}
+
+/* --- the COLLECT plaque (img/menu/collect.png) --- */
+.collect-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(210px, 34vw, 330px);
+  aspect-ratio: 1786 / 886;
+  background: url('../../img/menu/collect.png') center / 100% 100% no-repeat;
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, .7));
+  transition: transform .12s ease, filter .2s ease;
+}
+.collect-btn:hover { filter: drop-shadow(0 0 26px rgba(255, 224, 138, .9)) brightness(1.08); }
+.collect-btn:active { transform: translateY(3px) scale(.98); }
+
+/* The button is focused on appear so Enter works; the default outline
+   draws a white box around the plaque, so show the glow instead. */
+.collect-btn:focus { outline: none; }
+.collect-btn:focus-visible {
+  outline: none;
+  filter: drop-shadow(0 0 26px rgba(255, 224, 138, .95)) brightness(1.06);
+}
+
+.collect-btn__label {
+  /* sits inside the plaque's blue inset, not over its gold frame */
+  margin-top: 2%;
+  padding: 0 14%;
+  font-family: var(--font-display);
+  font-size: clamp(14px, 2.3vw, 24px);
+  letter-spacing: .1em;
+  white-space: nowrap;
+  color: #fff8e2;
+  text-shadow: 0 0 12px rgba(120, 200, 255, .9), 0 2px 3px rgba(0, 0, 0, .8);
+}
+
+/* --- three-stage board --- */
+.bonus__steps {
+  display: flex;
+  justify-content: center;
+  gap: clamp(6px, 1.4vw, 16px);
+  margin-top: 8px;
+}
+.bonus__step {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 999px;
+  color: var(--text-dim);
+  border: 1px solid rgba(255, 255, 255, .1);
+  transition: color .2s ease, border-color .2s ease, background .2s ease;
+}
+.bonus__step.is-current {
+  color: #2b1c00;
+  background: linear-gradient(180deg, var(--gold-200), var(--gold-500));
+  border-color: var(--gold-200);
+}
+.bonus__step.is-done { color: var(--gold-300); border-color: rgba(245, 196, 81, .4); }
+
+.bonus__board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: clamp(8px, 1.6vw, 18px);
+}
+
+/* --- a pick tile: fixed art, hidden prize --- */
+.bonus-pick {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #12182a, #070a12);
+  box-shadow: inset 0 0 0 1px rgba(245, 196, 81, .35);
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease, filter .25s ease;
+}
+.bonus__board--stage1 .bonus-pick { aspect-ratio: 4 / 3; }
+
+.bonus-pick__art {
+  position: absolute;
+  inset: 0;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  transition: transform .3s ease, filter .3s ease, opacity .3s ease;
+}
+.bonus__board--stage1 .bonus-pick__art { background-size: cover; }
+
+.bonus-pick__glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 55%, rgba(255, 224, 138, .22), transparent 65%);
+  opacity: 0;
+  transition: opacity .22s ease;
+}
+
+.bonus-pick:not(.is-revealed):hover {
+  transform: translateY(-5px) scale(1.025);
+  box-shadow: inset 0 0 0 2px var(--gold-200), 0 0 34px -4px rgba(245, 196, 81, .95);
+}
+.bonus-pick:not(.is-revealed):hover .bonus-pick__glow { opacity: 1; }
+.bonus-pick:not(.is-revealed):hover .bonus-pick__art { transform: scale(1.04); }
+.bonus-pick:not(.is-revealed):active { transform: scale(.98); }
+
+.bonus-pick__name {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 6px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--gold-200);
+  background: linear-gradient(180deg, transparent, rgba(3, 5, 10, .9));
+}
+
+.bonus-pick__face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  padding: 6px;
+  text-align: center;
+  font-family: var(--font-num);
+  font-size: clamp(16px, 2.8vw, 30px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transition: opacity .3s ease;
+}
+
+.bonus-pick.is-revealed { cursor: default; }
+.bonus-pick.is-revealed .bonus-pick__art { filter: brightness(.28) saturate(.5); }
+.bonus-pick.is-revealed .bonus-pick__face { opacity: 1; }
+.bonus-pick.is-revealed .bonus-pick__name { opacity: 0; }
+
+.bonus-pick.is-cash .bonus-pick__face { color: var(--gold-100); text-shadow: 0 0 18px rgba(255, 210, 74, .9); }
+.bonus-pick.is-mult .bonus-pick__face { color: #f0b3ff; text-shadow: 0 0 18px rgba(169, 123, 255, .9); }
+.bonus-pick.is-end .bonus-pick__face {
+  color: var(--danger);
+  font-family: var(--font-ui);
+  font-size: clamp(12px, 1.7vw, 16px);
+  letter-spacing: .16em;
+}
+.bonus-pick.is-jackpot {
+  box-shadow: inset 0 0 0 2px var(--gold-100), 0 0 44px -2px rgba(255, 224, 138, 1);
+}
+.bonus-pick.is-jackpot .bonus-pick__art { filter: brightness(1.15) saturate(1.2); }
+.bonus-pick.is-jackpot .bonus-pick__face {
+  font-family: var(--font-display);
+  font-size: clamp(15px, 2.3vw, 26px);
+  letter-spacing: .08em;
+  color: #fff8e2;
+  text-shadow: 0 0 22px rgba(255, 224, 138, 1);
+  animation: bigwinPulse 1s ease-in-out infinite;
+}
+
+.bonus-pick.is-chosen { box-shadow: inset 0 0 0 2px var(--gold-200), 0 0 34px -4px rgba(245, 196, 81, .95); }
+.bonus-pick.is-missed { opacity: .45; }
+
+.bonus-lane {
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, .08);
+  background: rgba(255, 255, 255, .03);
+  opacity: .5;
+  transition: opacity .3s ease, border-color .3s ease, box-shadow .3s ease;
+}
+.bonus-lane.is-active {
+  opacity: 1;
+  border-color: rgba(245, 196, 81, .65);
+  box-shadow: 0 0 26px -8px rgba(245, 196, 81, .8);
+}
+.bonus-lane.is-done { opacity: .85; }
+
+.bonus-lane__head {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--gold-300);
+  margin-bottom: 10px;
+}
+
+.bonus-lane__cards { display: grid; gap: 8px; }
+
+/* Kept deliberately short: three lanes of four must fit above the fold
+   or the title scrolls out of view on a laptop screen. */
+.bonus-card {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 5 / 2;
+  max-height: 15vh;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(245, 196, 81, .3);
+  background: #0a0d16;
+  cursor: not-allowed;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.bonus-lane.is-active .bonus-card { cursor: pointer; }
+.bonus-lane.is-active .bonus-card:not(.is-revealed):hover {
+  transform: translateY(-3px) scale(1.02);
+  border-color: var(--gold-200);
+  box-shadow: 0 0 26px -6px rgba(245, 196, 81, .9);
+}
+
+/* Framed on the scarab rather than dead centre — a 5:2 crop of the
+   square art would otherwise slice the wordmark in half. */
+.bonus-card__back {
+  position: absolute;
+  inset: 0;
+  background: url('../../img/reels/bonus.png') center 38% / cover no-repeat;
+  transition: opacity .25s ease;
+}
+.bonus-card__back::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 50% 45%, transparent 35%, rgba(3, 4, 10, .72) 100%);
+}
+.bonus-card__face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  font-family: var(--font-num);
+  font-size: clamp(15px, 2.6vw, 24px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  transition: opacity .25s ease;
+}
+
+.bonus-card.is-revealed .bonus-card__back { opacity: 0; }
+.bonus-card.is-revealed .bonus-card__face { opacity: 1; }
+.bonus-card.is-revealed { animation: bonusFlip .4s ease; }
+
+.bonus-card.is-cash { background: linear-gradient(180deg, #2b2408, #0d0b04); }
+.bonus-card.is-cash .bonus-card__face { color: var(--gold-200); }
+.bonus-card.is-mult { background: linear-gradient(180deg, #2a0f38, #0c0512); }
+.bonus-card.is-mult .bonus-card__face { color: #f0b3ff; }
+.bonus-card.is-jackpot {
+  background: linear-gradient(180deg, #5a3c02, #2a1c00);
+  box-shadow: 0 0 30px -4px rgba(255, 224, 138, 1);
+}
+.bonus-card.is-jackpot .bonus-card__face {
+  font-family: var(--font-display);
+  font-size: clamp(13px, 2vw, 20px);
+  letter-spacing: .08em;
+  color: #fff6d5;
+  text-shadow: 0 0 16px rgba(255, 224, 138, 1);
+}
+.bonus-card.is-end  { background: linear-gradient(180deg, #3a0f0f, #120404); }
+.bonus-card.is-end .bonus-card__face { color: var(--danger); font-size: 13px; letter-spacing: .12em; }
+
+.bonus-card.is-chosen {
+  border-color: var(--gold-200);
+  box-shadow: 0 0 28px -6px rgba(245, 196, 81, .95);
+}
+.bonus-card.is-missed { opacity: .32; filter: grayscale(.5); }
+
+.bonus__tally {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+.bonus__tally-label {
+  font-size: 11px;
+  letter-spacing: .22em;
+  color: var(--text-dim);
+}
+.bonus__tally-value {
+  font-family: var(--font-num);
+  font-size: clamp(22px, 4vw, 34px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold-100);
+}
+.bonus__tally-mult {
+  font-weight: 700;
+  padding: 3px 11px;
+  border-radius: 999px;
+  color: #1b0a26;
+  background: linear-gradient(180deg, #f0b3ff, var(--violet));
+}
+
+.bonus__footer { display: flex; justify-content: center; margin-top: 16px; min-height: 52px; }
+
+.bonus__collect {
+  padding: 14px 38px;
+  border-radius: 14px;
+  font-family: var(--font-display);
+  font-size: clamp(15px, 2.4vw, 20px);
+  letter-spacing: .12em;
+  color: #2b1c00;
+  background: linear-gradient(180deg, var(--gold-200), var(--gold-500));
+  box-shadow: 0 6px 0 var(--gold-700), 0 14px 30px -10px rgba(245, 196, 81, .8);
+  transition: transform .12s ease, box-shadow .12s ease;
+  animation: haloPulse 2s ease-out infinite;
+}
+.bonus__collect:active { transform: translateY(5px); box-shadow: 0 1px 0 var(--gold-700); }
+
+@keyframes bonusFlip {
+  0% { transform: rotateY(90deg) scale(.9); }
+  100% { transform: none; }
+}
+
+/* Bonus seals that triggered the round */
+.cell.is-win.is-bonus .cell__frame {
+  border-color: var(--gold-100);
+  box-shadow: 0 0 26px rgba(255, 244, 200, 1), inset 0 0 26px rgba(255, 244, 200, .6);
+}
+
+/* ==========================================================================
+   Controls
+   ========================================================================== */
+.icon-btn {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-content: center;
+  font-size: 18px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--ink-600), var(--ink-800));
+  border: 1px solid rgba(255, 255, 255, .1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 4px 12px -6px #000;
+  transition: transform .12s ease, border-color .2s ease, box-shadow .2s ease;
+}
+.icon-btn:hover { border-color: rgba(245, 196, 81, .55); transform: translateY(-1px); }
+.icon-btn:active { transform: translateY(1px); }
+
+/* --- stepper (bet / lines) --- */
+/* --- spin button --- */
+/* While spinning the button is disabled but must NOT read as dead — it
+   keeps its gold and shows the progress ring instead. */
+/* Small idle breathing glow so the primary action is obvious. */
+/* --- pill buttons --- */
+/* Turbo bolt gets a charged glow when armed. */
+/* --- auto play menu --- */
+.auto-menu {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(8, 11, 20, .97);
+  border: 1px solid rgba(245, 196, 81, .35);
+  box-shadow: var(--shadow-lift);
+  animation: fadeUp .18s ease-out;
+}
+.auto-menu__title {
+  grid-column: 1 / -1;
+  font-size: 10px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: center;
+}
+.auto-menu button {
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-weight: 700;
+  font-size: 14px;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .09);
+  transition: background .15s ease, color .15s ease;
+}
+.auto-menu button:hover {
+  background: linear-gradient(180deg, var(--gold-200), var(--gold-500));
+  color: #2b1c00;
+}
+
+/* ==========================================================================
+   Paytable modal
+   ========================================================================== */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(2, 3, 7, .82);
+  backdrop-filter: blur(6px);
+  animation: fadeIn .2s ease;
+}
+
+.modal__panel {
+  width: min(760px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  border-radius: 20px;
+  padding: clamp(16px, 3vw, 26px);
+  background: linear-gradient(180deg, #131828, #080b13);
+  border: 1px solid rgba(245, 196, 81, .4);
+  box-shadow: var(--shadow-lift);
+}
+
+.modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.modal__title {
+  font-family: var(--font-display);
+  font-size: clamp(18px, 3vw, 26px);
+  letter-spacing: .12em;
+  color: var(--gold-200);
+}
+.modal__sub {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 18px;
+}
+
+.section-title {
+  font-size: 11px;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: var(--gold-300);
+  margin: 22px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(245, 196, 81, .2);
+}
+
+.feature-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(169, 123, 255, .14), rgba(0, 0, 0, .25));
+  border: 1px solid rgba(169, 123, 255, .4);
+}
+.feature-card p { font-size: 13px; line-height: 1.55; color: var(--text-dim); }
+.feature-card p + p { margin-top: 8px; }
+.feature-card b { color: #f0b3ff; }
+
+.feature-card--bonus {
+  background: linear-gradient(180deg, rgba(245, 196, 81, .14), rgba(0, 0, 0, .25));
+  border-color: rgba(245, 196, 81, .45);
+}
+.feature-card--bonus b { color: var(--gold-200); }
+
+/* --- feature cards: art + one line, no prose --- */
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+}
+
+.info-card {
+  padding: 12px 10px;
+  border-radius: 14px;
+  text-align: center;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(0, 0, 0, .3));
+  border: 1px solid rgba(255, 255, 255, .09);
+}
+.info-card--jackpot {
+  border-color: rgba(245, 196, 81, .6);
+  box-shadow: 0 0 22px -6px rgba(245, 196, 81, .8);
+}
+
+.info-card__art {
+  width: 100%;
+  aspect-ratio: 1;
+  margin-bottom: 8px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+.info-card__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--gold-300);
+  margin-bottom: 4px;
+}
+.info-card__text {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+.info-card__text b { color: var(--text); }
+
+/* --- symbol cards --- */
+.pay-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 10px;
+}
+
+.pay-card {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  border-radius: 14px;
+  text-align: center;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(0, 0, 0, .32));
+  border: 1px solid rgba(255, 255, 255, .08);
+  transition: border-color .18s ease, transform .12s ease;
+}
+.pay-card:hover { border-color: rgba(245, 196, 81, .5); transform: translateY(-2px); }
+.pay-card--high { border-color: rgba(245, 196, 81, .28); }
+.pay-card--special { border-color: rgba(74, 217, 255, .35); }
+
+.pay-card__art {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 9px;
+  margin-bottom: 8px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  border: 1px solid rgba(255, 255, 255, .1);
+}
+
+.pay-card__name {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  margin-bottom: 6px;
+}
+
+.pay-card__pays {
+  display: grid;
+  gap: 2px;
+  font-family: var(--font-num);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold-200);
+}
+.pay-card__pays b {
+  color: var(--text-dim);
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.pay-card__tag {
+  margin-top: auto;
+  padding-top: 7px;
+  font-size: 10px;
+  line-height: 1.35;
+  letter-spacing: .04em;
+  color: var(--text-dim);
+}
+
+.pay-row {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  transition: background .18s ease;
+}
+.pay-row:hover { background: rgba(255, 255, 255, .04); }
+.pay-row__img {
+  width: 56px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, .14);
+}
+.pay-row--special .pay-row__img { border-color: rgba(74, 217, 255, .6); }
+.pay-row--high .pay-row__img { border-color: rgba(245, 196, 81, .6); }
+.pay-row__name { font-weight: 700; letter-spacing: .05em; }
+.pay-row__note { font-size: 12px; color: var(--text-dim); line-height: 1.4; }
+.pay-row__pays { display: flex; gap: 6px; }
+
+.pay-chip {
+  font-family: var(--font-num);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .09);
+  color: var(--gold-200);
+}
+.pay-chip b { color: var(--text-dim); font-weight: 600; margin-right: 5px; }
+
+.lines-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 10px;
+}
+.line-mini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid rgba(255, 255, 255, .07);
+}
+.line-mini__num {
+  font-family: var(--font-num);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--mini-color);
+  min-width: 16px;
+}
+.line-mini__grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  flex: 1;
+}
+.line-mini__cell {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .08);
+}
+.line-mini--more {
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  color: var(--gold-300);
+  border-style: dashed;
+}
+
+.line-mini__cell.is-on {
+  background: var(--mini-color);
+  box-shadow: 0 0 6px var(--mini-color);
+}
+
+/* ==========================================================================
+   Toast + footer
+   ========================================================================== */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  transform: translate(-50%, 14px);
+  z-index: 80;
+  padding: 11px 20px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 14px;
+  background: rgba(8, 11, 20, .96);
+  border: 1px solid rgba(245, 196, 81, .45);
+  box-shadow: var(--shadow-lift);
+  opacity: 0;
+  transition: opacity .25s ease, transform .25s ease;
+}
+.toast.is-on { opacity: 1; transform: translate(-50%, 0); }
+/* ==========================================================================
+   Animations
+   ========================================================================== */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+@keyframes pulseSoft {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+
+@keyframes ringSpin { to { transform: rotate(360deg); } }
+
+@keyframes haloPulse {
+  0% { transform: scale(.96); opacity: .7; }
+  70% { transform: scale(1.18); opacity: 0; }
+  100% { opacity: 0; }
+}
+
+@keyframes reelFlash {
+  0% { opacity: 0; }
+  25% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes anticipate {
+  0%, 100% { box-shadow: inset 0 0 30px rgba(0, 0, 0, .9), 0 0 20px rgba(245, 196, 81, .5); }
+  50% { box-shadow: inset 0 0 30px rgba(0, 0, 0, .9), 0 0 40px rgba(245, 196, 81, 1); }
+}
+
+@keyframes winFrame {
+  0%, 100% { box-shadow: 0 0 14px rgba(255, 224, 138, .7), inset 0 0 18px rgba(255, 224, 138, .35); }
+  50% { box-shadow: 0 0 30px rgba(255, 224, 138, 1), inset 0 0 30px rgba(255, 224, 138, .6); }
+}
+
+@keyframes badgePop {
+  0% { transform: translateX(-50%) scale(.86); opacity: 0; }
+  100% { transform: translateX(-50%) scale(1); opacity: 1; }
+}
+
+@keyframes bigwinPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+@keyframes fxDraw { to { stroke-dashoffset: 0; } }
+
+@keyframes stickyGlow {
+  0%, 100% { box-shadow: 0 0 16px rgba(169, 123, 255, .7), inset 0 0 20px rgba(169, 123, 255, .35); }
+  50% { box-shadow: 0 0 30px rgba(169, 123, 255, 1), inset 0 0 30px rgba(169, 123, 255, .6); }
+}
+
+@keyframes stickyLock {
+  0% { transform: scale(1.5); opacity: 0; }
+  60% { opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ==========================================================================
+   Responsive
+   ========================================================================== */
+/* The cabinet is one fixed-aspect image, so it scales as a unit rather
+   than reflowing. Only the free-floating overlays need adjusting. */
+@media (max-width: 620px) {
+  :root { --reel-gap: 4px; }
+
+  .line-badge {
+    font-size: 12px;
+    gap: 7px;
+    padding: 5px 6px 5px 9px;
+  }
+  .badge__thumb { width: 20px; height: 20px; }
+  .badge__text { font-size: 12px; }
+  .badge__amount { font-size: 13px; padding: 3px 9px; }
+  .pay-row { grid-template-columns: 44px 1fr; }
+  .pay-row__pays { grid-column: 1 / -1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

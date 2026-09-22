@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Temple of Gold</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="app/styles/slotify.css">
+</head>
+<body>
+
+  <!--
+    Icon sprite. Inline <symbol> + <use> keeps everything in one file so
+    the icons work from file:// with no extra requests, and they inherit
+    currentColor so button states restyle them for free.
+  -->
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="ico-info" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9.25" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <circle cx="12" cy="7.4" r="1.35" fill="currentColor"/>
+      <path d="M12 10.6v6.6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="ico-sound-on" viewBox="0 0 24 24">
+      <path d="M4 9.2h3.4L12 5.2v13.6L7.4 14.8H4z" fill="currentColor"/>
+      <path d="M15.4 9.1a4.1 4.1 0 0 1 0 5.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M18.1 6.4a7.9 7.9 0 0 1 0 11.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="ico-sound-off" viewBox="0 0 24 24">
+      <path d="M4 9.2h3.4L12 5.2v13.6L7.4 14.8H4z" fill="currentColor"/>
+      <path d="M16 9.5l5 5M21 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="ico-turbo" viewBox="0 0 24 24">
+      <path d="M13.4 2.2 5.1 13.1a.6.6 0 0 0 .48.96h4.62l-1.6 7.74 8.3-10.9a.6.6 0 0 0-.48-.96h-4.62z" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="ico-auto" viewBox="0 0 24 24">
+      <path d="M20.2 12a8.2 8.2 0 1 1-2.7-6.1" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+      <path d="M20.4 3.4v4.9h-4.9" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+
+    <symbol id="ico-stop" viewBox="0 0 24 24">
+      <rect x="6.5" y="6.5" width="11" height="11" rx="2.2" fill="currentColor"/>
+    </symbol>
+
+    <symbol id="ico-coins" viewBox="0 0 24 24">
+      <ellipse cx="10" cy="7.6" rx="6.4" ry="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <path d="M3.6 7.6v4.3c0 1.44 2.87 2.6 6.4 2.6 1.05 0 2.04-.1 2.92-.29" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+      <path d="M18.4 13.5v5.6M15.6 16.3h5.6" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+    </symbol>
+
+    <symbol id="ico-close" viewBox="0 0 24 24">
+      <path d="M6.6 6.6l10.8 10.8M17.4 6.6L6.6 17.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+  </svg>
+
+  <!-- Boot / asset preloader -->
+  <div class="boot" id="boot">
+    <div class="boot__logo">SLOTIFY</div>
+    <div class="boot__sub">Temple of Gold</div>
+    <div class="boot__track"><div class="boot__bar" id="bootBar"></div></div>
+    <div class="boot__pct" id="bootPct">0%</div>
+  </div>
+
+  <!--
+    The cabinet IS the artwork.  Every control below is positioned as a
+    percentage of reelfull.png (1444 x 1089) so it lands inside the slot
+    painted for it; the art supplies the frames, the live elements supply
+    the values, icons and interaction.
+  -->
+  <main class="cab-wrap">
+    <div class="cab">
+
+      <!-- ---- painted meter windows along the top ---- -->
+      <div class="cab-read cab-read--balance" title="Balance">$<span id="balanceValue">0</span></div>
+      <div class="cab-read cab-read--totalbet" title="Total bet">$<span id="totalBetValue">243</span></div>
+      <div class="cab-read cab-read--win" title="Win">$<span id="winValue">0</span></div>
+      <div class="cab-read cab-read--jackpot" title="Jackpot">$<span id="jackpotValue">0</span></div>
+
+      <!-- ---- reel window ---- -->
+      <section class="cab-stage" id="stage">
+        <div class="reels" id="reels">
+          <svg class="line-fx" id="lineFx" aria-hidden="true"></svg>
+        </div>
+
+        <div class="line-badge" id="lineBadge" hidden></div>
+
+        <div class="fs-pill" id="fsPill" hidden>
+          ★ FREE SPINS <span id="fsCount">0</span>
+          <span class="fs-pill__banked" id="fsBanked" hidden>$0</span>
+        </div>
+
+        <div class="bigwin" id="bigWin" hidden>
+          <div class="bigwin__label" id="bigWinLabel">BIG WIN</div>
+          <div class="bigwin__value">$<span id="bigWinValue">0</span></div>
+          <div class="bigwin__hint">click to continue</div>
+        </div>
+
+        <div class="fs-banner" id="fsBanner" hidden>
+          <div class="fs-banner__count" id="fsBannerCount">10</div>
+          <div class="fs-banner__text">FREE SPINS AWARDED</div>
+          <div class="fs-banner__note" id="fsBannerNote" hidden></div>
+        </div>
+
+        <div class="round-total" id="roundTotal" hidden>
+          <div class="round-total__label">FREE SPINS COMPLETE</div>
+          <div class="round-total__value">$<span id="roundTotalValue">0</span></div>
+          <button class="collect-btn" id="roundCollect" hidden>
+            <span class="collect-btn__label">COLLECT</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- ---- painted control bar ---- -->
+      <button class="cab-btn cab-btn--info" id="infoBtn" title="Paytable (I)" aria-label="Paytable">
+        <svg class="ico"><use href="#ico-info"></use></svg>
+      </button>
+
+      <button class="cab-btn cab-btn--sound" id="soundBtn" title="Sound (M)" aria-pressed="true" aria-label="Toggle sound">
+        <svg class="ico"><use id="soundIcon" href="#ico-sound-on"></use></svg>
+      </button>
+
+      <button class="cab-step cab-step--betdown" id="betDown" title="Decrease bet" aria-label="Decrease bet"></button>
+      <button class="cab-read cab-read--bet" id="maxBetBtn" title="Bet per line — click for maximum bet">
+        $<span id="betValue">1</span>
+      </button>
+      <button class="cab-step cab-step--betup" id="betUp" title="Increase bet" aria-label="Increase bet"></button>
+
+      <button class="cab-spin" id="spinBtn" title="Spin (Space)">
+        <span class="cab-spin__ring"></span>
+        <span class="cab-spin__label" id="spinLabel">SPIN</span>
+      </button>
+
+      <button class="cab-step cab-step--linesdown" id="linesDown" title="Fewer paylines" aria-label="Fewer paylines"></button>
+      <div class="cab-read cab-read--lines" title="Active paylines"><span id="linesValue">MAX</span></div>
+      <button class="cab-step cab-step--linesup" id="linesUp" title="More paylines" aria-label="More paylines"></button>
+
+      <button class="cab-btn cab-btn--coins" id="addCoinsBtn" title="Add credits" aria-label="Add credits">
+        <svg class="ico"><use href="#ico-coins"></use></svg>
+      </button>
+
+      <button class="cab-btn cab-btn--turbo" id="turboBtn" title="Turbo spin (T)" aria-pressed="false" aria-label="Turbo">
+        <svg class="ico"><use href="#ico-turbo"></use></svg>
+      </button>
+
+      <div class="cab-auto">
+        <button class="cab-btn cab-btn--auto" id="autoBtn" title="Auto play (A)" aria-label="Auto play">
+          <svg class="ico"><use id="autoIcon" href="#ico-auto"></use></svg>
+          <span class="sr-only" id="autoLabel">AUTO</span>
+          <span class="cab-auto__count" id="autoCount" hidden></span>
+        </button>
+        <div class="auto-menu" id="autoMenu" hidden>
+          <span class="auto-menu__title">Auto spins</span>
+          <button data-auto="10">10</button>
+          <button data-auto="25">25</button>
+          <button data-auto="50">50</button>
+          <button data-auto="100">100</button>
+          <button data-auto="250">250</button>
+          <button data-auto="inf">∞</button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ========================= Paytable modal ========================= -->
+  <div class="modal" id="paytableModal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal__panel">
+      <div class="modal__head">
+        <h2 class="modal__title" id="modalTitle">Paytable</h2>
+        <button class="icon-btn" id="modalClose" aria-label="Close">
+          <svg class="ico"><use href="#ico-close"></use></svg>
+        </button>
+      </div>
+      <div class="section-title">Free Spins</div>
+      <div class="info-grid" id="freeCards"></div>
+
+      <div class="section-title">Chamber of Riches</div>
+      <div class="info-grid" id="bonusCards"></div>
+
+      <div class="section-title">Symbols</div>
+      <div class="pay-grid" id="paytableBody"></div>
+
+      <div class="section-title">Paylines</div>
+      <p class="modal__sub">
+        At the maximum setting all <b>243</b> paths through the reels are
+        live &mdash; every possible way of stepping one symbol per reel.
+        The lowest numbers are the gentle shapes; the higher ones zig-zag.
+      </p>
+      <div class="lines-grid" id="linesGrid"></div>
+    </div>
+  </div>
+
+  <div class="bonus-layer" id="bonusLayer" hidden></div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="app/core/js/config.js"></script>
+  <script src="app/core/js/audio.js"></script>
+  <script src="app/core/js/reels.js"></script>
+  <script src="app/core/js/wins.js"></script>
+  <script src="app/core/js/bonus.js"></script>
+  <script src="app/core/js/game.js"></script>
+</body>
+</html>
